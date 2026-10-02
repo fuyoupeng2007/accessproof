@@ -18,6 +18,8 @@ Review status means a local user has reviewed a finding; it does not mean the pr
 
 Version 1 baseline passed 5/12 fixed synthetic browser cases. Version 2 passed 12/12 after correcting hidden-content and label handling and adding structural prompts. Version 3 retained 12/12 and passed six additional persistence/import/comparison cases (18/18 total). Real browser checks cover actual downloads and import, refresh, English/Chinese, script/resource isolation and mobile width. [Comparison and iteration evidence](devpost/ITERATIONS.md).
 
+Final polish 3.0.1: actual [axe-core comparison](devpost/AXE-COMPARISON.md) on ten overlapping-rule fixtures identified an overly strong placeholder-only classification. This now prompts persistent-label review rather than claiming a certain missing-name barrier. Barrier classifications agreed on 10/10 after correction; this is a narrow fixture comparison, not equivalent coverage. One additional metadata regression brings the final set to 19/19. Pa11y and WAVE were compared from documentation only.
+
 Open tests.html or http://127.0.0.1:4318/tests.html to run the in-browser regression set. These are small handwritten examples, not a coverage/accuracy estimate. `node --check core.js`, app.js, server.cjs and tests.js verify syntax.
 
 ## Remaining limitations

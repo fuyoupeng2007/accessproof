@@ -1,1 +1,1 @@
-{"name":"accessproof","version":"3.0.0","private":true,"scripts":{"start":"node server.cjs"}}
+{"name":"accessproof","version":"3.0.1","private":true,"scripts":{"start":"node server.cjs"}}
