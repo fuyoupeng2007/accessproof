@@ -12,11 +12,15 @@
   if(['BUTTON','A'].includes(n.tagName))return readable(n)||[...n.querySelectorAll('img[alt]')].filter(x=>!hidden(x)).map(x=>x.getAttribute('alt').trim()).join(' ')||n.getAttribute('title')?.trim()||'';
   return n.getAttribute('title')?.trim()||'';
  }
+ function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0).toString(16);}
+ function location(n){const parts=[];for(let p=n;p?.tagName;p=p.parentElement){const siblings=p.parentNode?.children?[...p.parentNode.children].filter(x=>x.tagName===p.tagName):[];parts.unshift(p.tagName.toLowerCase()+(siblings.length>1?':nth-of-type('+(siblings.indexOf(p)+1)+')':''));}return parts.join(' > ')||'document';}
  function scan(input,lang='en'){
+  lang=lang==='zh'?'zh':'en';
   const source=String(input||'');if(!source.trim())throw Error('empty');if(source.length>100000)throw Error('size');
   const template=document.createElement('template');template.innerHTML=source;
   const doc=template.content,issues=[],say=(z,e)=>lang==='zh'?z:e;
-  const add=(rule,node,title,why,fix,severity='error')=>issues.push({id:rule+'-'+issues.length,rule,severity,title,why,fix,evidence:node?.outerHTML?.slice(0,800)||'',selector:node?.id?'#'+node.id:node?.tagName?.toLowerCase()||'document'});
+  const keyCounts=new Map();
+  const add=(rule,node,title,why,fix,severity='error')=>{const full=node?.outerHTML||'',base=rule+'-'+hash(full),ordinal=keyCounts.get(base)||0;keyCounts.set(base,ordinal+1);issues.push({id:base+'-'+ordinal,rule,severity,title,why,fix,evidence:full.slice(0,800),truncated:full.length>800,selector:location(node),reviewed:false,note:''});};
   const metadata=source.replace(/<!--[\s\S]*?-->/g,'').replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi,'');
   const html=metadata.match(/<html\b[^>]*>/i)?.[0]||'',language=html.match(/\blang\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
   if(!language||!language.slice(1).some(x=>x?.trim()))add('document-lang',null,say('页面缺少语言','Document language missing'),say('屏幕阅读器需要知道文本语言。','Screen readers need the document language.'),'<html lang="en">');
@@ -29,8 +33,11 @@
   for(const link of doc.querySelectorAll('a[href]'))if(!hidden(link)&&!name(link,doc))add('link-name',link,say('链接缺少名称','Link has no name'),say('链接需要说明目的地。','A link needs an identifiable destination.'),'<a href="...">Describe the destination</a>');
   let level=0;for(const heading of doc.querySelectorAll('h1,h2,h3,h4,h5,h6')){if(hidden(heading))continue;const next=Number(heading.tagName[1]);if(level&&next>level+1)add('heading-order',heading,say('标题层级可能跳跃','Heading level skips a step'),say('检查层级是否准确表达内容结构。','Review whether heading levels reflect the content structure.'),say('检查前后标题，选择符合层级的级别。','Review adjacent headings and use the appropriate level.'),'review');level=next;}
   if(!doc.querySelector('main,[role="main"]'))add('main-landmark',null,say('建议设置主要内容区域','Main landmark not found'),say('主要内容区域有助于定位页面。','A main landmark helps users navigate the page.'),'<main>...</main>','review');
-  return {version:2,lang,source,issues};
+  return {version:3,lang,source,issues};
  }
- function markdown(report){return '# AccessProof — static HTML preflight\n\nNot a compliance certificate. Test the rendered page and keyboard behavior separately.\n\n'+report.issues.map(x=>`## ${x.title}\n\nRule: ${x.rule}\n\n${x.why}\n\nEvidence:\n\n\`\`\`html\n${x.evidence}\n\`\`\`\n\nSuggested pattern:\n\n\`\`\`html\n${x.fix}\n\`\`\`\n`).join('\n');}
- root.AccessProof={scan,markdown};
+ function merge(next,old){if(!old||!Array.isArray(old.issues))return next;for(const issue of next.issues){const prev=old.issues.find(x=>x?.id===issue.id&&x.evidence===issue.evidence&&x.rule===issue.rule)|| (old.version<3?old.issues.find(x=>x?.evidence===issue.evidence&&x.rule===issue.rule):null);if(prev){issue.note=typeof prev.note==='string'?prev.note.slice(0,3000):'';issue.reviewed=prev.reviewed===true;}}return next;}
+ function restore(saved,lang){if(!saved||typeof saved.source!=='string'||saved.source.length>100000)throw Error('invalid');return merge(scan(saved.source,lang||saved.lang),saved);}
+ function compare(before,after){const old=before?.issues||[];return {resolved:old.filter(x=>!after.issues.some(y=>y.id===x.id)),added:after.issues.filter(x=>!old.some(y=>y.id===x.id)),retained:after.issues.filter(x=>old.some(y=>y.id===x.id))};}
+ function markdown(report){return '# AccessProof — static HTML preflight\n\nNot a compliance certificate. Test the rendered page and keyboard behavior separately.\n\n'+report.issues.map(x=>`## ${x.title}\n\nRule: ${x.rule}\nLocation: ${x.selector}\nReviewed by local user: ${x.reviewed?'yes':'no'}\nDecision: ${x.note||'Unrecorded'}\n\n${x.why}\n\nEvidence${x.truncated?' (excerpt)':''}:\n\n\`\`\`html\n${x.evidence}\n\`\`\`\n\nSuggested pattern:\n\n\`\`\`html\n${x.fix}\n\`\`\`\n`).join('\n')+'\n## Full source\n\n'+report.source.split('\n').map(x=>'> '+x).join('\n')+'\n';}
+ root.AccessProof={scan,markdown,merge,restore,compare};
 })(globalThis);
